@@ -1,7 +1,7 @@
 # Projeto de Arquitetura de Computadores
 
 ## Integrantes:
-### - Arthur Gaud�ncio Odebrecht Stern
-### - Gabriel Ara�jo da Silva Domingues Ferreira
-### - Rawlyson de Oliveira Mac�do
+### - Arthur Gaudêncio Odebrecht Stern
+### - Gabriel Araújo da Silva Domingues Ferreira
+### - Rawlyson de Oliveira Macêdo
 ### - Franciso Manuel da Silva Gomes
