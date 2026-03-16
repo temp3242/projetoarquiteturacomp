@@ -42,7 +42,7 @@ void etapa1::run() {
 
     std::string inst_str;
     while (getline(instrucoes, inst_str)) {
-        if (PC == 1 && inst_str == "111110") inst_str = "111100";
+        if (PC == 1 && inst_str == "111110\r") inst_str = "111100";
 
         int inst = std::stoi(inst_str, nullptr, 2);
         IR = inst;
