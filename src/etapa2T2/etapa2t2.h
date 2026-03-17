@@ -10,6 +10,7 @@ class etapa2t2 {
 
     // O registrador de 8 bits
     int8_t MBR;
+    int IR;
     public:
     etapa2t2(){
         H = OPC = TOS = CPP = LV = SP = PC = MDR = MAR = 0;
