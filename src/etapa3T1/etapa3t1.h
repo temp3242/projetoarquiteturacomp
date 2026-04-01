@@ -4,8 +4,8 @@
 
 class etapa3t1 {
 
-    etapa3t1() = default;
 public:
+    etapa3t1() = default;
     void run();
 };
 

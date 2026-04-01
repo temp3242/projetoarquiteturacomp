@@ -1,4 +1,4 @@
-#include "etapa3t1.h"
+#include "etapa3e.h"
 #include "../config.h"
 
 #include <filesystem>
@@ -19,15 +19,15 @@ struct alu_result {
     bool c_out, n, z;
 };
 
-void print_memory(std::ostream& out, const std::vector<uint32_t>& mem){
+void print_memory_3e(std::ostream& out, const std::vector<uint32_t>& mem){
     out << "*******************************\n";
     for (uint32_t val : mem){
         out << std::bitset<32>(val) << "\n";
-    }
+    }    std::ofstream log(std::string(PROJECT_ROOT_DIR) + "/out/etapa3T1/log_tarefa1.txt");
     out << "*******************************\n";
 }
 
-void print_regs(std::ostream& out, const regfile& regs){
+void print_regs_3e(std::ostream& out, const regfile& regs){
     out << "*******************************\n";
     out << "mar = " << std::bitset<32>(regs.MAR) << "\n";
     out << "mdr = " << std::bitset<32>(regs.MDR) << "\n";
@@ -41,7 +41,7 @@ void print_regs(std::ostream& out, const regfile& regs){
     out << "h = " << std::bitset<32>(regs.H) << "\n";
 }
 
-std::vector<std::string> split(const std::string& str, const std::string& delimiter) {
+std::vector<std::string> split_3e(const std::string& str, const std::string& delimiter) {
     std::vector<std::string> tokens;
     size_t start = 0;
     size_t end = str.find(delimiter);
@@ -68,8 +68,9 @@ std::vector<std::string> split(const std::string& str, const std::string& delimi
 // OUT A = 00011000
 // OUT B = 00010100
 // A+1 = 00111001
+// B+1 = 00110101
 
-alu_result alu_e3t1(unsigned const char opcode, const uint32_t a, const uint32_t b) {
+alu_result alu_3e(unsigned const char opcode, const uint32_t a, const uint32_t b) {
     int c_in, c_out, s;
 
     const bool sll_8 = (opcode >> 7) & 0x1;
@@ -137,7 +138,7 @@ alu_result alu_e3t1(unsigned const char opcode, const uint32_t a, const uint32_t
     return result;
 }
 
-void write_memory(regfile *regs, std::vector<uint32_t>& memory) {
+void write_memory_3e(regfile *regs, std::vector<uint32_t>& memory) {
     if (regs->MAR < memory.size()) {
         memory[regs->MAR] = regs->MDR;
     } else {
@@ -146,7 +147,7 @@ void write_memory(regfile *regs, std::vector<uint32_t>& memory) {
     }
 }
 
-void read_memory(regfile *regs, const std::vector<uint32_t>& memory) {
+void read_memory_3e(regfile *regs, const std::vector<uint32_t>& memory) {
     if (regs->MAR < memory.size()) {
         regs->MDR = memory[regs->MAR];
     } else {
@@ -154,7 +155,7 @@ void read_memory(regfile *regs, const std::vector<uint32_t>& memory) {
     }
 }
 
-void write_to_regs(regfile *regs, const uint16_t c_bus_mask, const uint32_t value) {
+void write_to_regs_3e(regfile *regs, const uint16_t c_bus_mask, const uint32_t value) {
     if (c_bus_mask & (1 << 0)) regs->MAR = value;
     if (c_bus_mask & (1 << 1)) regs->MDR = value;
     if (c_bus_mask & (1 << 2)) regs->PC = value;
@@ -166,16 +167,165 @@ void write_to_regs(regfile *regs, const uint16_t c_bus_mask, const uint32_t valu
     if (c_bus_mask & (1 << 8)) regs->H = value;
 }
 
+void run_microinstruction(const int inst, regfile& regs, std::vector<uint32_t>& memory, std::ostream& log, int& ciclo) {
+    int ula = inst >> 15;
+    int c_bus = inst >> 6 & 0x1FF;
+    int mem = inst >> 4 & 0x3;
+    int b_bus = inst & 0xF;
 
-void etapa3t1::run() {
+    uint32_t alu_b;
+    std::string str_b_bus = "";
+
+    switch (b_bus) {
+        case 0:
+            alu_b = regs.MDR;
+            if (mem == 3) str_b_bus = "mbr (fetch)";
+            else str_b_bus = "mdr";
+            break;
+        case 1:
+            alu_b = regs.PC; str_b_bus = "pc";
+            break;
+        case 2:
+            alu_b = regs.MBR; str_b_bus = "mbr";
+            break;
+        case 3:
+            alu_b = regs.MBR << 24; str_b_bus = "h";
+            alu_b >>= 24;
+            break;
+        case 4:
+            alu_b = regs.SP; str_b_bus = "sp";
+            break;
+        case 5:
+            alu_b = regs.LV; str_b_bus = "lv";
+            break;
+        case 6:
+            alu_b = regs.CPP; str_b_bus = "cpp";
+            break;
+        case 7:
+            alu_b = regs.TOS; str_b_bus = "tos";
+            break;
+        case 8:
+            alu_b = regs.OPC; str_b_bus = "opc";
+            break;
+        default: alu_b = 0;
+    }
+
+    std::vector<std::string> c_regs;
+    
+    if (c_bus & (1 << 8)) c_regs.push_back("h");
+    if (c_bus & (1 << 7)) c_regs.push_back("opc");
+    if (c_bus & (1 << 6)) c_regs.push_back("tos");
+    if (c_bus & (1 << 5)) c_regs.push_back("cpp");
+    if (c_bus & (1 << 4)) c_regs.push_back("lv");
+    if (c_bus & (1 << 3)) c_regs.push_back("sp");
+    if (c_bus & (1 << 2)) c_regs.push_back("pc");
+    if (c_bus & (1 << 1)) c_regs.push_back("mdr");
+    if (c_bus & (1 << 0)) c_regs.push_back("mar");
+
+    if (mem == 3) { // fetch
+        c_regs.push_back("mbr");
+        c_regs.push_back("h");
+    }
+
+    std::string str_c_bus = c_regs.empty() ? "nenhum" : c_regs[0];
+    for (size_t i = 1; i < c_regs.size(); i++) str_c_bus += ", " + c_regs[i];
+
+    auto print_both = [&](const std::string& str){
+        std::cout << str;
+        log << str;
+    };
+
+    print_both("Cycle " + std::to_string(ciclo) + "\n");
+    print_both("ir = " + std:: bitset<8>(ula).to_string() + " " +
+                        std:: bitset<9>(c_bus).to_string() + " " + 
+                        std:: bitset<2>(mem).to_string() + " " +
+                        std:: bitset<4>(b_bus).to_string() + "\n");
+
+    print_both("b = " + str_b_bus + "\n");
+    print_both("c = " + str_c_bus + "\n\n");
+
+    print_both("> Registers before instruction\n");
+    print_regs_3e(std::cout, regs);
+    print_regs_3e(log, regs);
+    print_both("\n");
+
+
+    if (mem == 3) { // fetch
+        // "ula" é o byte (8 bits) mais significativo dos 23 bits da instrucao.
+        regs.MBR = ula;
+        regs.H = ula;
+    } else {
+        alu_result alu_out = alu_3e(ula, regs.H, alu_b);
+        write_to_regs_3e(&regs, c_bus, alu_out.s);
+    }
+
+    if (mem == 2) {
+        write_memory_3e(&regs, memory);
+    } else if (mem == 1) {
+        read_memory_3e(&regs, memory);
+    }
+
+    print_both ("> Registers after instruction\n");
+    print_regs_3e(std::cout, regs);
+    print_regs_3e(log, regs);
+    print_both("\n");
+
+    print_both ("> Memory after instruction\n");
+    print_memory_3e(std::cout, memory);
+    print_memory_3e(log, memory);
+    print_both("============================================================\n");
+
+    ciclo++;
+}
+
+// Formato microinstrucao (23 bits): UUUUUUUUCCCCCCCCCMMBBBB
+// Legenda: U = ULA
+// C = Barramento C
+// M = Memoria
+// B = Barramento B
+
+void generate_microinstructions(std::string& inst, regfile& regs, std::vector<uint32_t>& memory, std::ostream& log, int& ciclo) {
+    
+    std::vector<std::string> inst_split = split_3e(inst, " ");
+    std::vector<uint32_t> microinstructions;
+
+    if (inst_split[0] == "ILOAD") {
+        microinstructions = {0b00010100100000000000101}; // H = LV
+        for (int i = 0; i < stoi(inst_split[1]); i++) {
+            microinstructions.push_back(0b00111001100000000000000); // H = H + 1
+        }
+        microinstructions.push_back(0b00011000000000001010000); // MAR = H; rd
+        microinstructions.push_back(0b00110101000001001100100); // MAR = SP = SP+1; wr
+        microinstructions.push_back(0b00010100001000000000000); // TOS = MDR
+    } else if (inst_split[0] == "DUP") {
+        microinstructions = {
+            0b00110101000001001000100, // MAR = SP = SP + 1
+            0b00010100000000010100111 // MDR = TOS; wr
+        };
+    } else if (inst_split[0] == "BIPUSH") {
+        std::string byte = inst_split[1];
+        microinstructions = {
+            0b00110101000001001000100, // MAR = SP = SP + 1
+            ((stoul(byte, nullptr, 2) << 15) | 0b00000000000000000110000), // MBR = H = byte
+            0b00011000001000010100000 // MDR = TOS = H; wr
+        };
+    }
+
+    for (const auto& microinst : microinstructions) {
+        run_microinstruction(microinst, regs, memory, log, ciclo);
+    }
+}
+
+
+void etapa3e::run() {
     // Cria a pasta de saída, se não existir
-    std::filesystem::create_directory(std::string(PROJECT_ROOT_DIR) + "/out/etapa3T1");
+    std::filesystem::create_directory(std::string(PROJECT_ROOT_DIR) + "/out/etapa3e");
 
     // Abre os arquivos de entrada e saída
     std::ifstream arq_registradores(std::string(PROJECT_ROOT_DIR) + "/progs/etapa3/registradores_etapa3_tarefa1.txt");
-    std::ifstream instrucoes(std::string(PROJECT_ROOT_DIR) + "/progs/etapa3/microinstruções_etapa3_tarefa1.txt");
+    std::ifstream instrucoes(std::string(PROJECT_ROOT_DIR) + "/progs/etapa3/instrucoes.txt");
     std::ifstream mem_file(std::string(PROJECT_ROOT_DIR) + "/progs/etapa3/dados_etapa3_tarefa1.txt");
-    std::ofstream log(std::string(PROJECT_ROOT_DIR) + "/out/etapa3T1/log_tarefa1.txt");
+    std::ofstream log(std::string(PROJECT_ROOT_DIR) + "/out/etapa3e/log_entregavel.txt");
 
     if (!instrucoes.is_open() || !log.is_open() || !arq_registradores.is_open() || !mem_file.is_open()) {
         std::cout << "Erro ao abrir os arquivos da Etapa 3 Tarefa 1.\n";
@@ -191,16 +341,12 @@ void etapa3t1::run() {
 
     mem_file.close();
 
-    auto print_both = [&](const std::string& str){
-        std::cout << str;
-        log << str;
-    };
     
     regfile regs{};
     std::string reg_line;
 
     while (getline(arq_registradores, reg_line)) {
-        auto parts = split(reg_line, " = ");
+        auto parts = split_3e(reg_line, " = ");
         std::string reg_name = parts[0];
         uint32_t reg_value = std::stoul(parts[1], nullptr, 2);
 
@@ -217,14 +363,19 @@ void etapa3t1::run() {
     }
 
     arq_registradores.close();
+    
+    auto print_both = [&](const std::string& str){
+        std::cout << str;
+        log << str;
+    };
 
     print_both("============================================================\n");
     print_both("Initial memory state\n");
-    print_memory(std::cout, memory);
-    print_memory(log, memory);
+    print_memory_3e(std::cout, memory);
+    print_memory_3e(log, memory);
     print_both("Initial register state\n");
-    print_regs(std::cout, regs);
-    print_regs(log, regs);
+    print_regs_3e(std::cout, regs);
+    print_regs_3e(log, regs);
     print_both("============================================================\n");
     print_both("Start of Program\n");
     print_both("============================================================\n");
@@ -233,98 +384,7 @@ void etapa3t1::run() {
     int ciclo = 1;
 
     while (getline(instrucoes, inst_str)) {
-        int inst = std::stoi(inst_str, nullptr, 2);
-        int ula = inst >> 15;
-        int c_bus = inst >> 6 & 0x1FF;
-        int mem = inst >> 4 & 0x3;
-        int b_bus = inst & 0xF;
-
-        uint32_t alu_b;
-        std::string str_b_bus = "";
-
-        switch (b_bus) {
-            case 0:
-                alu_b = regs.MDR; str_b_bus = "mdr";
-                break;
-            case 1:
-                alu_b = regs.PC; str_b_bus = "pc";
-                break;
-            case 2:
-                alu_b = regs.MBR; str_b_bus = "mbr";
-                break;
-            case 3:
-                alu_b = regs.MBR << 24; str_b_bus = "h";
-                alu_b >>= 24;
-                break;
-            case 4:
-                alu_b = regs.SP; str_b_bus = "sp";
-                break;
-            case 5:
-                alu_b = regs.LV; str_b_bus = "lv";
-                break;
-            case 6:
-                alu_b = regs.CPP; str_b_bus = "cpp";
-                break;
-            case 7:
-                alu_b = regs.TOS; str_b_bus = "tos";
-                break;
-            case 8:
-                alu_b = regs.OPC; str_b_bus = "opc";
-                break;
-            default: alu_b = 0;
-        }
-
-        std::vector<std::string> c_regs;
-        
-        if (c_bus & (1 << 8)) c_regs.push_back("h");
-        if (c_bus & (1 << 7)) c_regs.push_back("opc");
-        if (c_bus & (1 << 6)) c_regs.push_back("tos");
-        if (c_bus & (1 << 5)) c_regs.push_back("cpp");
-        if (c_bus & (1 << 4)) c_regs.push_back("lv");
-        if (c_bus & (1 << 3)) c_regs.push_back("sp");
-        if (c_bus & (1 << 2)) c_regs.push_back("pc");
-        if (c_bus & (1 << 1)) c_regs.push_back("mdr");
-        if (c_bus & (1 << 0)) c_regs.push_back("mar");
-
-        std::string str_c_bus = c_regs.empty() ? "nenhum" : c_regs[0];
-        for (size_t i = 1; i < c_regs.size(); i++) str_c_bus += ", " + c_regs[i];
-
-        print_both("Cycle " + std::to_string(ciclo) + "\n");
-        print_both("ir = " + std:: bitset<8>(ula).to_string() + " " +
-                            std:: bitset<9>(c_bus).to_string() + " " + 
-                            std:: bitset<2>(mem).to_string() + " " +
-                            std:: bitset<4>(b_bus).to_string() + "\n");
-
-        print_both("b = " + str_b_bus + "\n");
-        print_both("c = " + str_c_bus + "\n\n");
-
-        print_both("> Registers before instruction\n");
-        print_regs(std::cout, regs);
-        print_regs(log, regs);
-        print_both("\n");
-
-
-        alu_result alu_out = alu_e3t1(ula, regs.H, alu_b);
-        write_to_regs(&regs, c_bus, alu_out.s);
-
-        if (mem == 2) {
-            write_memory(&regs, memory);
-        } else if (mem == 1) {
-            read_memory(&regs, memory);
-        }
-
-        print_both ("> Registers after instruction\n");
-        print_regs(std::cout, regs);
-        print_regs(log, regs);
-        print_both("\n");
-
-        print_both ("> Memory after instruction\n");
-        print_memory(std::cout, memory);
-        print_memory(log, memory);
-        print_both("============================================================\n");
-
-        ciclo++;
-
+        generate_microinstructions(inst_str, regs, memory, log, ciclo);
     }
     
     print_both("Cycle " + std::to_string(ciclo) + "\n");
